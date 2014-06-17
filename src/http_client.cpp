@@ -28,16 +28,50 @@
 #include <http_client/http_client.h>
 #include <http_client/url.h>
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <string.h>
-
 #include <stdio.h>
+#include <string.h>
 #include <errno.h>
-#include <unistd.h>
-#include <netdb.h>
+
+#if defined( _MSC_VER )
+#  undef UNICODE
+#  include <winsock2.h>
+#  include <ws2tcpip.h>
+#
+#  define snprintf _snprintf
+#  define strncasecmp _strnicmp
+
+	typedef SSIZE_T ssize_t;
+
+	// http://stackoverflow.com/questions/2188914/c-searching-for-a-string-in-a-file
+	static void *memmem(const void *haystack, size_t hlen, const void *needle, size_t nlen)
+	{
+		const char *p = (const char*)haystack;
+		size_t plen = hlen;
+
+		if (!nlen)
+			return NULL;
+
+		int needle_first = *(unsigned char *)needle;
+
+		while (plen >= nlen && (p = (const char*)memchr(p, needle_first, plen - nlen + 1)))
+		{
+			if (!memcmp(p, needle, nlen))
+				return (void *)p;
+
+			p++;
+			plen = hlen - (p - haystack);
+		}
+
+		return NULL;
+	}
+#else
+#  include <sys/types.h>
+#  include <sys/socket.h>
+#  include <netinet/in.h>
+#  include <arpa/inet.h>
+#  include <unistd.h>
+#  include <netdb.h>
+#endif
 
 struct http_client
 {
@@ -51,6 +85,15 @@ struct http_request_ctx
 	char   buffer[2048];
 	size_t bytes_in_buffer;
 };
+
+static void http_client_close_socket( int sockfd )
+{
+#if defined( _MSC_VER )
+	closesocket( sockfd );
+#else
+	close( sockfd );
+#endif
+}
 
 static void* http_client_alloc( size_t size, http_client_allocator* alloc )
 {
@@ -131,7 +174,7 @@ http_client_result http_client_connect( http_client_t* c, const char* url, const
 
 		if( connect( client->sockfd, res_iter->ai_addr, res_iter->ai_addrlen ) < 0 )
 		{
-			close( client->sockfd );
+			http_client_close_socket( client->sockfd );
 			client->sockfd = -1;
 			continue;
 		}
@@ -154,7 +197,7 @@ http_client_result http_client_connect( http_client_t* c, const char* url, const
 void http_client_disconnect( http_client_t client )
 {
     // ... disconnect here ... ;)
-	close( client->sockfd );
+	http_client_close_socket( client->sockfd );
 }
 
 static http_client_result http_client_readline( int sock_fd, http_request_ctx* ctx, size_t* consumed )
@@ -217,7 +260,7 @@ static http_client_result http_client_make_request( http_client_t client, http_r
 		size_t request_len = snprintf( request, sizeof(request), "%s %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: %s\r\nContent-Length: %lu\r\n\r\n", verb, resource, client->url->host, client->useragent, payload_size );
 		if( send( client->sockfd, request, request_len, 0 ) < 0 )
 			return HTTP_CLIENT_SOCKET_ERROR;
-		if( send( client->sockfd, payload, payload_size, 0 ) < 0 )
+		if( send( client->sockfd, (const char*)payload, payload_size, 0 ) < 0 )
 			return HTTP_CLIENT_SOCKET_ERROR;
 	}
 

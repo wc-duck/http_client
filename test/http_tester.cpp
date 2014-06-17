@@ -30,6 +30,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#if defined( _MSC_VER )
+#  include <WinSock2.h>
+#endif
+
 #define HTTP_ERR_CHECK( err ) if( err != HTTP_CLIENT_OK ) \
 	{ \
 		free( c ); \
@@ -41,6 +45,17 @@ int main( int argc, char** argv )
 {
 	if( argc < 4 )
 		return 1;
+
+#if defined( _MSC_VER )
+	// Initialize Winsock
+	WSADATA wsaData;
+	int iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
+	if (iResult != 0)
+	{
+		printf("WSAStartup failed: %d\n", iResult);
+		return 1;
+	}
+#endif // defined( _MSC_VER )
 
     http_client_t c;
     http_client_result res;
