@@ -44,7 +44,10 @@
 int main( int argc, char** argv )
 {
 	if( argc < 4 )
+	{
+		printf("usage: http_tester [GET,SET,PUT] url path\n");
 		return 1;
+	}
 
 #if defined( _MSC_VER )
 	// Initialize Winsock

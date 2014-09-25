@@ -39,11 +39,13 @@ typedef struct http_client* http_client_t;
 /**
  * Allocator used together with functions that need to allocate dynamic memory.
  *
+ * alloc function should work as realloc().
+ *
  * @example
  *
- * void* my_alloc( size_t sz, my_allocator* self )
+ * void* my_alloc( void* ptr, size_t sz, my_allocator* self )
  * {
- *     return some_alloc_func( sz, self->my_userdata );
+ *     return some_alloc_func( ptr, sz, self->my_userdata );
  * }
  *
  * struct my_allocator
@@ -56,7 +58,7 @@ typedef struct http_client* http_client_t;
  */
 struct http_client_allocator
 {
-	void* (*alloc)( size_t sz, http_client_allocator* self );
+	void* (*alloc)( void* ptr, size_t sz, http_client_allocator* self );
 };
 
 /**
@@ -98,6 +100,8 @@ void http_client_disconnect( http_client_t client );
  * @param msgbody ptr where to return GET message body, if alloc is NULL this will be allocated with malloc, otherwise alloc will be used.
  * @param msgbody_size ptr where to return GET message body size.
  * @param alloc allocator to use to alloc msgbody or NULL to use malloc.
+ *
+ * @note memory allocated for msgbody will need to be free:ed manually even if an error occured.
  *
  * @return HTTP_CLIENT_RESULT_OK on success.
  */

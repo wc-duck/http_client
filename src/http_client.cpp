@@ -95,11 +95,11 @@ static void http_client_close_socket( int sockfd )
 #endif
 }
 
-static void* http_client_alloc( size_t size, http_client_allocator* alloc )
+static void* http_client_alloc( void* ptr, size_t size, http_client_allocator* alloc )
 {
 	if( alloc == 0x0 )
-		return malloc( size );
-	return alloc->alloc( size, alloc );
+		return realloc( ptr, size );
+	return alloc->alloc( ptr, size, alloc );
 }
 
 static parsed_url* http_client_parse_url( const char* url, char* mem, size_t memsize )
@@ -280,6 +280,7 @@ static http_client_result http_client_make_request( http_client_t client, http_r
 		if( res != HTTP_CLIENT_OK )
 			return res;
 
+		printf("%s\n", ctx->buffer);
 		if( ctx->buffer[0] == '\0' )
 		{
 			done = true;
@@ -292,16 +293,55 @@ static http_client_result http_client_make_request( http_client_t client, http_r
 		else if( strncasecmp( ctx->buffer, "transfer-encoding:", 18 ) == 0 )
 		{
 			if( strncasecmp( ctx->buffer + 19, "chunked", 7 ) == 0 )
-			{
-				// not supported yet =/
-				return HTTP_CLIENT_INTERNAL_ERROR;
-			}
+				*content_length = 0;
 		}
 
 		http_client_finalize_line( ctx, consumed );
     }
 
 	return HTTP_CLIENT_OK;
+}
+
+static void http_client_recv_bytes( int sockfd, char* outbuf, size_t bytes )
+{
+	size_t read = 0;
+	while( read < bytes )
+	{
+		ssize_t res = recv( sockfd, outbuf + read, bytes - read, 0 );
+		// TODO: handle error!
+		read += res;
+	}
+}
+
+static http_client_result http_client_read_chunk_size( int sockfd, http_request_ctx* ctx, size_t* chunk_size )
+{
+	while( true )
+	{
+		size_t consumed = 0;
+		http_client_result res = http_client_readline( sockfd, ctx, &consumed );
+		if( res != HTTP_CLIENT_OK )
+			return res;
+
+		// ... check and ignore empty lines ...
+		if( ctx->buffer[0] != 0 )
+		{
+			*chunk_size = strtol( ctx->buffer, 0x0, 16 );
+			http_client_finalize_line( ctx, consumed );
+			return HTTP_CLIENT_OK;
+		}
+
+		http_client_finalize_line( ctx, consumed );
+	}
+
+	return HTTP_CLIENT_OK;
+}
+
+static size_t http_client_ctx_get_bytes( http_request_ctx* ctx, void* outbuffer )
+{
+	size_t bib = ctx->bytes_in_buffer;
+	memcpy( outbuffer, ctx->buffer, bib );
+	ctx->bytes_in_buffer = 0;
+	return bib;
 }
 
 http_client_result http_client_get( http_client_t client, const char* resource, void** msgbody, size_t* msgbody_size, http_client_allocator* alloc )
@@ -316,16 +356,37 @@ http_client_result http_client_get( http_client_t client, const char* resource, 
     if( res != HTTP_CLIENT_OK )
     	return res;
 
-    char* result_buffer = (char*)http_client_alloc( *msgbody_size, alloc );
-    if( result_buffer == 0x0 )
-    	return HTTP_CLIENT_MEMORY_ALLOC_ERROR;
+    if( *msgbody_size == 0 )
+    {
+		while( true )
+		{
+			size_t chunk_size;
+			http_client_result res = http_client_read_chunk_size( client->sockfd, &ctx, &chunk_size );
+			if( res != HTTP_CLIENT_OK )
+				return res;
 
-    *msgbody = result_buffer;
-    memcpy( result_buffer, ctx.buffer, ctx.bytes_in_buffer );
+			if( chunk_size == 0 )
+				break;
 
-    // TODO: handle error!
-    if( *msgbody_size > ctx.bytes_in_buffer )
-    	recv( client->sockfd, result_buffer + ctx.bytes_in_buffer, ctx.bytes_in_buffer - *msgbody_size, 0 );
+			*msgbody = http_client_alloc( *msgbody, *msgbody_size + chunk_size, alloc );
+			if( *msgbody == 0x0 )
+				return HTTP_CLIENT_MEMORY_ALLOC_ERROR;
+
+			char* chunk_tgt = (char*)*msgbody + *msgbody_size;
+			size_t bytes_copied = http_client_ctx_get_bytes( &ctx, chunk_tgt );
+			http_client_recv_bytes( client->sockfd, &chunk_tgt[bytes_copied], chunk_size - bytes_copied );
+			*msgbody_size += chunk_size;
+		}
+    }
+    else
+    {
+		*msgbody = http_client_alloc( 0x0, *msgbody_size, alloc );
+		if( *msgbody == 0x0 )
+			return HTTP_CLIENT_MEMORY_ALLOC_ERROR;
+
+		size_t bytes_copied = http_client_ctx_get_bytes( &ctx, *msgbody );
+		http_client_recv_bytes( client->sockfd, (char*)*msgbody + bytes_copied, *msgbody_size - bytes_copied );
+    }
 
     return HTTP_CLIENT_OK;
 }
