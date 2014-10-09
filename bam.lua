@@ -1,6 +1,8 @@
 --[[
-    a getopt.
-   version 0.1, march, 2012
+   Simple http-client written to be an drop-in code, focus is to be small
+   and easy to use but maybe not efficient.
+
+   version 1.0, June, 2014
 
    Copyright (C) 2012- Fredrik Kihlander
 
