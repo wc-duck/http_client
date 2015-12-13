@@ -71,12 +71,12 @@ TEST url_no_host()
 	if( parsed == 0x0 )
 		FAILm( "failed to parse url" );
 
+	ASSERT_STR_EQ(          "localhost", parsed->host );
 	ASSERT_STR_EQ(               "file", parsed->scheme );
 	ASSERT_STR_EQ( "/sub/resource.file", parsed->path );
 
 	ASSERT_EQ( 0x0, parsed->user );
 	ASSERT_EQ( 0x0, parsed->pass );
-	ASSERT_EQ( 0x0, parsed->host );
 	ASSERT_EQ(   0, parsed->port );
 
 	free( parsed );

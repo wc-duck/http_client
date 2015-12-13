@@ -143,7 +143,7 @@ static const char* parse_user_pass( const char* url, parse_url_ctx* ctx, parsed_
 
 static const char* parse_host_port( const char* url, parse_url_ctx* ctx, parsed_url* out )
 {
-	out->host = 0x0;
+	out->host = "localhost";
 
 	const char* portsep = strchr( url, ':' );
 	const char* pathsep = 0x0;
@@ -211,6 +211,6 @@ parsed_url* parse_url( const char* url, void* usermem, size_t mem_size )
 	url = parse_scheme( url, &ctx, out );    URL_PARSE_FAIL_IF( url == 0x0 );
 	url = parse_user_pass( url, &ctx, out ); URL_PARSE_FAIL_IF( url == 0x0 );
 	url = parse_host_port( url, &ctx, out ); URL_PARSE_FAIL_IF( url == 0x0 );
-	
+
 	return out;
 }
