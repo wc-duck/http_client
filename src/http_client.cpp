@@ -25,6 +25,8 @@
 	Fredrik Kihlander
 */
 
+#define URL_PARSER_IMPLEMENTATION_STATIC
+
 #include <http_client/http_client.h>
 #include <http_client/url.h>
 

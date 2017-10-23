@@ -50,5 +50,4 @@ settings.link.Output = output_func
 local objs  = Compile( settings, Collect( 'src/*.cpp' ) )
 local lib   = StaticLibrary( settings, 'http_client', objs )
 
-local url_parse_tests = Link( settings, 'url_parse_tests', Compile( settings, 'test/url_parse_tests.cpp' ), lib )
-local example         = Link( settings, 'http_tester',     Compile( settings, 'test/http_tester.cpp' ), lib )
+local example = Link( settings, 'http_tester',     Compile( settings, 'test/http_tester.cpp' ), lib )
